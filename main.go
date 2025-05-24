@@ -17,9 +17,6 @@ func main() {
 }
 
 func run() error {
-	// Call the Handlers
-
-	// db := models.DB{data: make(map[models.ID]models.User)}
 	db := make(map[models.ID]models.User)
 
 	handler := api.NewHandler(db)

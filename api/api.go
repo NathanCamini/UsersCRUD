@@ -28,42 +28,35 @@ func NewHandler(db map[models.ID]models.User) http.Handler {
 	// get specified user by ID
 	r.Get("/api/users/{id}", handleGetUserByID(db))
 
-	// r.Delete("/api/users", handlePost(db)) delete user with the id
+	// delete the user by ID
+	r.Delete("/api/users/{id}", handleDeleteUser(db))
 
-	// r.Put("/api/users", handlePost(db)) update the id user with the body of request
+	// update the user
+	r.Put("/api/users/{id}", handleUpdateUser(db))
 
 	return r
 }
 
 func handleNewUser(db map[models.ID]models.User) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		type dataResponse struct {
-			Id   string      `json:"id"`
-			User models.User `json:"user"`
-		}
-
 		var user models.User
 		if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-			utils.SendJson(w, utils.Response{Error: "Invalid body"}, http.StatusUnprocessableEntity)
+			utils.SendJson(w, utils.Response{Error: "invalid body"}, http.StatusUnprocessableEntity)
 			return
 		}
 
 		if err := models.Validate.Struct(user); err != nil {
-			utils.SendJson(w, utils.Response{Error: "Please provide FirstName, LastName and Bio for the user"}, http.StatusBadRequest)
+			utils.SendJson(w, utils.Response{Error: "please provide FirstName, LastName and Bio for the user"}, http.StatusBadRequest)
 			return
 		}
 
-		uuid, err := uuid.NewUUID()
+		userCreated, err := users.InsertNewUser(db, user)
 		if err != nil {
-			utils.SendJson(w, utils.Response{Error: "There was an error while saving the user to the database"}, http.StatusInternalServerError)
+			utils.SendJson(w, utils.Response{Error: err.Error()}, http.StatusInternalServerError)
 			return
 		}
 
-		db[models.ID(uuid)] = user
-
-		data := dataResponse{Id: uuid.String(), User: user}
-
-		utils.SendJson(w, utils.Response{Data: data}, http.StatusCreated)
+		utils.SendJson(w, utils.Response{Data: userCreated}, http.StatusCreated)
 	}
 }
 
@@ -80,16 +73,69 @@ func handleGetUserByID(db map[models.ID]models.User) http.HandlerFunc {
 
 		parsedID, err := uuid.Parse(id)
 		if err != nil {
-			utils.SendJson(w, utils.Response{Error: "The user information could not be retrieved"}, http.StatusInternalServerError)
+			utils.SendJson(w, utils.Response{Error: "invalid user ID"}, http.StatusBadRequest)
 			return
 		}
 
-		user, err := users.FindByID(db, parsedID)
+		user, statusCodeErr, err := users.FindByID(db, parsedID)
 		if err != nil {
-			utils.SendJson(w, utils.Response{Error: "The user with the specified ID does not exist"}, http.StatusNotFound)
+			utils.SendJson(w, utils.Response{Error: err.Error()}, statusCodeErr)
 			return
 		}
 
 		utils.SendJson(w, utils.Response{Data: user}, http.StatusOK)
+	}
+}
+
+func handleUpdateUser(db map[models.ID]models.User) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var newUser models.User
+		id := chi.URLParam(r, "id")
+
+		if err := json.NewDecoder(r.Body).Decode(&newUser); err != nil {
+			utils.SendJson(w, utils.Response{Error: "invalid body"}, http.StatusUnprocessableEntity)
+			return
+		}
+
+		if err := models.Validate.Struct(newUser); err != nil {
+			utils.SendJson(w, utils.Response{Error: "please provide FirstName, LastName and Bio for the user"}, http.StatusBadRequest)
+			return
+		}
+
+		parsedID, err := uuid.Parse(id)
+		if err != nil {
+			utils.SendJson(w, utils.Response{Error: "invalid user ID"}, http.StatusBadRequest)
+			return
+		}
+
+		_, statusCodeErr, err := users.FindByID(db, parsedID)
+		if err != nil {
+			utils.SendJson(w, utils.Response{Error: err.Error()}, statusCodeErr)
+			return
+		}
+
+		users.UpdateUser(db, parsedID, newUser)
+
+		utils.SendJson(w, utils.Response{Data: newUser}, http.StatusOK)
+	}
+}
+
+func handleDeleteUser(db map[models.ID]models.User) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+
+		parsedID, err := uuid.Parse(id)
+		if err != nil {
+			utils.SendJson(w, utils.Response{Error: "invalid user ID"}, http.StatusBadRequest)
+			return
+		}
+
+		statusCodeErr, err := users.DeleteUser(db, parsedID)
+		if err != nil {
+			utils.SendJson(w, utils.Response{Error: err.Error()}, statusCodeErr)
+			return
+		}
+
+		utils.SendJson(w, utils.Response{}, http.StatusNoContent)
 	}
 }

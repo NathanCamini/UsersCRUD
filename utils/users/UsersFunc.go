@@ -3,6 +3,7 @@ package users
 import (
 	"UsersCRUD/models"
 	"fmt"
+	"net/http"
 
 	"github.com/google/uuid"
 )
@@ -22,14 +23,50 @@ func FindAll(db map[models.ID]models.User) []UserWithID {
 	return data
 }
 
-func FindByID(db map[models.ID]models.User, id uuid.UUID) (*UserWithID, error) {
+func FindByID(db map[models.ID]models.User, id uuid.UUID) (*UserWithID, int, error) {
 	user, ok := db[models.ID(id)]
 	if !ok {
-		return nil, fmt.Errorf("The user with the specified ID does not exist")
+		return nil, http.StatusNotFound, fmt.Errorf("user not found")
 	}
 
 	return &UserWithID{
 		ID:   id.String(),
 		User: user,
+	}, http.StatusOK, nil
+}
+
+func InsertNewUser(db map[models.ID]models.User, newUser models.User) (*UserWithID, error) {
+	uuid, err := uuid.NewUUID()
+	if err != nil {
+		return nil, fmt.Errorf("there was an error while saving the user to the database")
+	}
+
+	db[models.ID(uuid)] = newUser
+
+	return &UserWithID{
+		ID:   uuid.String(),
+		User: newUser,
 	}, nil
+}
+
+func UpdateUser(db map[models.ID]models.User, id uuid.UUID, updatedUser models.User) *UserWithID {
+
+	db[models.ID(id)] = updatedUser
+
+	return &UserWithID{
+		ID:   id.String(),
+		User: updatedUser,
+	}
+}
+
+func DeleteUser(db map[models.ID]models.User, id uuid.UUID) (int, error) {
+
+	_, ok := db[models.ID(id)]
+	if !ok {
+		return http.StatusNotFound, fmt.Errorf("user not found")
+	}
+
+	delete(db, models.ID(id))
+
+	return http.StatusNoContent, nil
 }
