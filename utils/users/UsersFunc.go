@@ -38,7 +38,7 @@ func FindByID(db map[models.ID]models.User, id uuid.UUID) (*UserWithID, int, err
 func InsertNewUser(db map[models.ID]models.User, newUser models.User) (*UserWithID, error) {
 	uuid, err := uuid.NewUUID()
 	if err != nil {
-		return nil, fmt.Errorf("there was an error while saving the user to the database")
+		return nil, err
 	}
 
 	db[models.ID(uuid)] = newUser
